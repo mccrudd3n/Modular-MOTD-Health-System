@@ -1,0 +1,13 @@
+[Unit]
+Description=Modular MOTD Health Check Service
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/mkdir -p /run/motd-health
+ExecStart=/usr/bin/bash -c 'for script in /usr/local/lib/motd-health/check-*.sh; do /usr/bin/bash "$script"; done'
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

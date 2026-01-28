@@ -1,0 +1,6 @@
+state/
+*.state
+*.log
+.DS_Store
+*~
+*.swp
