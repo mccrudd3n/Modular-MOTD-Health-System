@@ -1,0 +1,20 @@
+[Unit]
+Description=SSH Defense & Monitoring Daemon
+After=network.target ssh.service
+Wants=ssh.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /usr/local/bin/ssh-monitor-daemon.sh
+Restart=always
+RestartSec=3
+User=root
+Group=root
+
+# Security hardening
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

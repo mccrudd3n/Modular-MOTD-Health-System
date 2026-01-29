@@ -3,67 +3,114 @@
 A state-driven system health framework designed for instant, non-blocking operator awareness via MOTD or `.bashrc`.
 
 ## 🎯 Aim & Objectives
-This project solves the "Laggy Login" problem on busy Linux servers (like Proxmox or high-density ZFS hosts). Traditional MOTD scripts run heavy diagnostics *during* the login process, causing delays. 
+
+This project solves the "Laggy Login" problem on busy Linux servers (like Proxmox or high-density ZFS hosts). Traditional MOTD scripts run heavy diagnostics *during* the login process, causing delays.
 
 **Objectives:**
+
 * **Zero-Latency Login:** Health checks are pre-computed in the background; logins merely read a static state file.
-* **Binary Tick-List:** Quickly identify which subsystem (Storage, Network, Fleet) needs attention without reading logs.
+* **Binary Tick-List:** Quickly identify which subsystem (Storage, Network, Security) needs attention without reading logs.
 * **Actionable Escalation:** If a check fails, the MOTD provides the exact command needed to investigate.
 * **State Isolation:** A failure in one check script cannot hang the renderer or the login process.
 
 ---
 
-## 🛠️ Installation (The Setup Script)
-The easiest way to deploy the system is using the automated setup script. It handles directory creation, permissions, systemd orchestration, and `.bashrc` integration.
+## 🛡️ Real-Time SSH Defense (New)
+
+Unlike standard periodic checks, this system includes a **continuous, root-privileged background daemon** (`ssh-monitor-daemon.sh`) designed specifically for high-security environments like Proxmox.
+
+**Why it is unique:**
+
+* **Key-Only Awareness:** Most tools fail to detect bots when Password Authentication is disabled. This daemon detects "Connection Closed / Pre-Auth" failures typical of bots slamming against SSH keys.
+* **Root Protection:** It specifically monitors the root user for "Invalid User" probing and "Key Rejection" events, which are invisible to standard user-level log scanners.
+* **Automated Mitigation:** It interacts directly with `iptables` to block abusive IPs instantly after a configurable threshold (Default: 3 attempts).
+* **Visualization:** The dashboard displays real-time threat metrics (Active Threats, Blocked IPs) directly in the MOTD.
+
+---
+
+## 📊 Monitoring Pillars
+
+The system is composed of modular "Pillars". Each runs independently to generate a status state.
+
+| Pillar | Function | Detail |
+| --- | --- | --- |
+| **INTEGRITY** | System Stability | Checks for dirty shutdowns (crashes), kernel taints, and validates uptime stability. Auto-recovers status after 15 mins of stable uptime. |
+| **SECURITY** | Intrusion Detection | **(See above)** Interfaces with the SSH Defense Daemon to display blocked IPs, active threat counts, and attack logs. |
+| **PERFORMANCE** | Resource Usage | Monitors CPU load averages and Memory pressure against configurable thresholds. |
+| **STORAGE** | ZFS & Disk Health | Visualizes ZFS pool capacity with ASCII bars. Monitors for `DEGRADED` pools, scrubbing status, and Read-Only filesystem mounts. |
+| **SERVICES** | Systemd Health | Scans for any systemd units in a `failed` state. |
+| **NETWORK** | Connectivity | Checks the operational state (`up`/`down`) of physical and virtual network interfaces. |
+| **MAINTENANCE** | Updates | Checks for pending APT updates and packages requiring a reboot. |
+| **FLEET** | Guest Management | *(Proxmox Only)* Monitors LXC/VM guest states. Warns on unexpected stoppages (Configurable to ignore specific IDs). |
+
+---
+
+## 🛠️ Installation
+
+The easiest way to deploy the system is using the automated setup script. It features an interactive menu allowing you to choose between **Link Mode** (for development) and **Install Mode** (for production).
 
 ```bash
 git clone <your-repo-url>
 cd motd-health
-sudo chmod +x system-setup.sh
+chmod +x system-setup.sh
 sudo ./system-setup.sh
 
 ```
 
+**During Setup:**
+
+1. Select **Install Mode** to copy files to `/opt/motd-health` and secure systemd units (`ProtectHome=yes`).
+2. Select **Link Mode** to run directly from the git folder (adjusts systemd to `ProtectHome=read-only` to allow access).
+
 ### Manual Installation
 
-If you prefer to move files manually:
+If you prefer to configure components manually:
 
 1. **Scripts**: Move `checks/` to `/usr/local/lib/motd-health/`.
 2. **Renderer**: Move `bin/render-motd.sh` to `/usr/local/bin/`.
-3. **Persistence**: Move `systemd/motd-health.*` to `/etc/systemd/system/`.
-4. **Activation**: Run `systemctl enable --now motd-health.timer`.
-5. **Integration**: Append the contents of `examples/bashrc-snippet.txt` to your `~/.bashrc`.
+3. **Daemon**: Move `bin/ssh-monitor-daemon.sh` to `/usr/local/bin/`.
+4. **Persistence**: Move `systemd/*` to `/etc/systemd/system/`.
+5. **Activation**:
+```bash
+systemctl enable --now motd-health.timer
+systemctl enable --now ssh-monitor.service
+
+```
+
+
+6. **Integration**: Append the contents of `examples/bashrc-snippet.txt` to your `~/.bashrc`.
 
 ---
 
 ## 🏗️ Architecture
 
 * **Checks (`checks/`)**: Independent bash scripts that monitor specific system pillars.
+* **Daemon (`bin/ssh-monitor-daemon.sh`)**: A continuous loop service that watches `journalctl` and manages `iptables`.
 * **State (`/run/motd-health/`)**: Transient POSIX-safe state files generated by checks.
 * **Renderer (`bin/render-motd.sh`)**: A non-privileged script that reads state and displays health.
 * **Systemd**: Orchestrates checks via timers (default: 1-minute intervals) to ensure state is fresh.
 
 ---
 
-## 🚀 Daily Usage & Support
+## 🚀 Daily Usage
 
 Once installed, your MOTD will look like a "Health Dashboard."
 
 * **[ PASS ]**: Everything is nominal.
-* **[ WARN ]**: Subsystem is degraded (e.g., updates pending or high memory).
-* **[ FAIL ]**: Immediate action required (e.g., ZFS Pool Degraded).
+* **[ WARN ]**: Subsystem is degraded (e.g., updates pending, high memory, or initializing security metrics).
+* **[ FAIL ]**: Immediate action required (e.g., ZFS Pool Degraded, SSH Daemon Dead).
 
 **Adding a New Pillar:**
 
 1. Create `checks/check-<name>.sh`.
 2. Ensure it outputs to `/run/motd-health/<name>.state` following the `STATUS/SUMMARY/REMEDIATE` format.
-3. The `system-setup.sh` will automatically pick up any new scripts in the `checks/` folder during the next run.
+3. Add the new pillar name to the `PILLARS` array in `render-motd.sh`.
 
 ---
 
 ## 🖋️ Credits
 
-Designed by **John McCrudden** and aided by **LLM (Large Language Model)** to architect and optimize the code.
+Designed and architected by **John McCrudden** and aided by **LLM (Large Language Model)** to write and optimize the code.
 
 ---
 

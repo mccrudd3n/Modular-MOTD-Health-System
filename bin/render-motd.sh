@@ -1,8 +1,13 @@
 #!/bin/bash
+# /usr/local/bin/render-motd.sh
+
 # Colors
 R="\033[1;31m" G="\033[1;32m" Y="\033[1;33m" C="\033[1;36m" W="\033[1;37m" NC="\033[0m"
 STATE_DIR="/run/motd-health"
-PILLARS=("integrity" "performance" "storage" "services" "network" "maintenance" "fleet")
+
+# Pillars to render (Order determines display order)
+# Added 'ssh-defense' immediately after Integrity
+PILLARS=("integrity" "ssh-defense" "performance" "storage" "services" "network" "maintenance" "fleet")
 
 # Helper to read KEY="VALUE" safely
 get_val() {
@@ -15,6 +20,8 @@ get_val() {
 print_status() {
     local pillar=$1
     local file="$STATE_DIR/$pillar.state"
+    
+    # Fail silently/gracefully if a specific state file hasn't been generated yet
     [[ ! -f "$file" ]] && return
 
     # Extract values
@@ -23,6 +30,7 @@ print_status() {
     local DETAIL=$(get_val "DETAIL" "$file")
     local REMEDIATE=$(get_val "REMEDIATE" "$file")
 
+    # Determine Color
     case "$STATUS" in
         PASS) local S_COL=$G ;;
         WARN) local S_COL=$Y ;;
@@ -30,17 +38,21 @@ print_status() {
         *)    local S_COL=$W ;;
     esac
 
-    # Print Header
-    printf "%-12s -> [${S_COL} %-4s ${NC}] %s\n" "${pillar^^}" "$STATUS" "$SUMMARY"
+    # Pretty Labeling: Convert "ssh-defense" to "SECURITY" for cleaner UI
+    local LABEL="${pillar^^}"
+    if [[ "$pillar" == "ssh-defense" ]]; then LABEL="SECURITY"; fi
 
-    # Print Details (Convert '||' back to newlines)
+    # Print Header
+    printf "%-12s -> [${S_COL} %-4s ${NC}] %s\n" "$LABEL" "$STATUS" "$SUMMARY"
+
+    # Print Details (Handle '||' separator for multi-line details)
     if [[ -n "$DETAIL" ]]; then
         echo "$DETAIL" | sed 's/ || /\n/g' | while read -r line; do
             [[ -n "$line" ]] && printf "               -> %s\n" "$line"
         done
     fi
 
-    # Print Remediation
+    # Print Remediation (Only if not PASS)
     if [[ "$STATUS" != "PASS" && -n "$REMEDIATE" ]]; then
         printf "               -> ${W}Run:${NC} ${C}%s${NC}\n" "$REMEDIATE"
     fi
