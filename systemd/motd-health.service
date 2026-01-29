@@ -1,13 +1,20 @@
 [Unit]
 Description=Modular MOTD Health Check Service
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
+# Ensure the state directory exists before running checks
 ExecStartPre=/usr/bin/mkdir -p /run/motd-health
+# Execute every .sh file in the linked directory sequentially
 ExecStart=/usr/bin/bash -c 'for script in /usr/local/lib/motd-health/check-*.sh; do /usr/bin/bash "$script"; done'
+# Run as root to ensure ZFS and PVE commands have necessary permissions
 User=root
 Group=root
+# Capture errors in the journal for easier debugging
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
