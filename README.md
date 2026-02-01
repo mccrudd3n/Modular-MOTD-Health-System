@@ -50,7 +50,7 @@ The system is composed of modular "Pillars". Each runs independently to generate
 The easiest way to deploy the system is using the automated setup script. It features an interactive menu allowing you to choose between **Link Mode** (for development) and **Install Mode** (for production).
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/mccrudd3n/Modular-MOTD-Health-System
 cd motd-health
 chmod +x system-setup.sh
 sudo ./system-setup.sh
